@@ -29,14 +29,17 @@ class CameraInfo(NamedTuple):
     T: np.array
     FovY: np.array
     FovX: np.array
-    depth_params: dict
+    image: np.array
     image_path: str
     image_name: str
-    depth_path: str
     width: int
     height: int
+<<<<<<< HEAD
     is_test: bool
     time_idx: int # WDD [2024-07-30] 原因: 为动态场景添加时间索引。
+=======
+    time: float # WDD: 2024-05-21 为支持动态高斯场景，增加时间戳属性
+>>>>>>> 9cffd5e (Stable version before new feature)
 
 class SceneInfo(NamedTuple):
     point_cloud: BasicPointCloud
