@@ -309,7 +309,55 @@ def readNerfSyntheticInfo(path, white_background, depths, eval, extension=".png"
                            is_nerf_synthetic=True)
     return scene_info
 
+def read4DGSSceneInfo(path, images, depths, eval, train_test_exp, llffhold=8):
+    train_cam_infos = []
+    test_cam_infos = []
+
+    frame_dirs = sorted([d for d in os.listdir(path) if d.startswith('frame') and os.path.isdir(os.path.join(path, d))])
+
+    for frame_dir in frame_dirs:
+        frame_path = os.path.join(path, frame_dir)
+        try:
+            cameras_extrinsic_file = os.path.join(frame_path, "sparse/0", "images.bin")
+            cameras_intrinsic_file = os.path.join(frame_path, "sparse/0", "cameras.bin")
+            cam_extrinsics = read_extrinsics_binary(cameras_extrinsic_file)
+            cam_intrinsics = read_intrinsics_binary(cameras_intrinsic_file)
+        except:
+            cameras_extrinsic_file = os.path.join(frame_path, "sparse/0", "images.txt")
+            cameras_intrinsic_file = os.path.join(frame_path, "sparse/0", "cameras.txt")
+            cam_extrinsics = read_extrinsics_text(cameras_extrinsic_file)
+            cam_intrinsics = read_intrinsics_text(cameras_intrinsic_file)
+        
+        reading_dir = "images" if images is None else images
+        cam_infos_unsorted = readColmapCameras(
+            cam_extrinsics=cam_extrinsics, cam_intrinsics=cam_intrinsics, depths_params=None,
+            images_folder=os.path.join(frame_path, reading_dir), 
+            depths_folder="", test_cam_names_list=[])
+        
+        train_cam_infos.extend(cam_infos_unsorted)
+
+    nerf_normalization = getNerfppNorm(train_cam_infos)
+
+    # WDD注释: 使用找到的第一个帧目录来加载初始点云，而不是硬编码 'frame000000'
+    if not frame_dirs:
+        raise FileNotFoundError(f"No frame directories (e.g., 'frame000000') found in {path}")
+    first_frame_dir = frame_dirs[0]
+    ply_path = os.path.join(path, first_frame_dir, "sparse/0/points3D.ply")
+    try:
+        pcd = fetchPly(ply_path)
+    except:
+        pcd = None
+
+    scene_info = SceneInfo(point_cloud=pcd,
+                           train_cameras=train_cam_infos,
+                           test_cameras=test_cam_infos,
+                           nerf_normalization=nerf_normalization,
+                           ply_path=ply_path,
+                           is_nerf_synthetic=False)
+    return scene_info
+
 sceneLoadTypeCallbacks = {
     "Colmap": readColmapSceneInfo,
-    "Blender" : readNerfSyntheticInfo
+    "Blender" : readNerfSyntheticInfo,
+    "4DGS": read4DGSSceneInfo
 }
