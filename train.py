@@ -84,8 +84,8 @@ def training(dataset, opt, pipe, testing_iterations, saving_iterations, checkpoi
                 net_image_bytes = None
                 custom_cam, do_training, pipe.convert_SHs_python, pipe.compute_cov3D_python, keep_alive, scaling_modifer = network_gui.receive()
                 if custom_cam != None:
-                    # WDD [2024-07-31] [实现GUI中每2秒自动切换时间索引，以循环播放]
-                    if time.time() - last_time_update > 2:
+                    # WDD [2024-07-31] [实现GUI中每0.2秒自动切换时间索引，以循环播放]
+                    if time.time() - last_time_update > 0.2:
                         last_time_update = time.time()
                         current_time_idx = (current_time_idx + 1) % frame_count
                     custom_cam.time_idx = current_time_idx
@@ -183,7 +183,7 @@ def training(dataset, opt, pipe, testing_iterations, saving_iterations, checkpoi
                 if iteration > opt.densify_from_iter and iteration % opt.densification_interval == 0:
                     size_threshold = 20 if iteration > opt.opacity_reset_interval else None
                     gaussians.densify_and_prune(opt.densify_grad_threshold, 0.005, scene.cameras_extent, size_threshold, radii)
-                net_image
+                 
                 if iteration % opt.opacity_reset_interval == 0 or (dataset.white_background and iteration == opt.densify_from_iter):
                     gaussians.reset_opacity()
 

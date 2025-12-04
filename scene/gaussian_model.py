@@ -164,7 +164,7 @@ class GaussianModel:
         rots = torch.zeros((fused_point_cloud.shape[0], 4), device="cuda")
         rots[:, 0] = 1
 
-        
+        #WDD 这里增加了Frame_count参数
         opacities = self.inverse_opacity_activation(0.1 * torch.ones((fused_point_cloud.shape[0], Frame_count), dtype=torch.float, device="cuda"))
 
         self._xyz = nn.Parameter(fused_point_cloud.requires_grad_(True))
@@ -481,6 +481,7 @@ class GaussianModel:
         self.densify_and_split(grads, max_grad, extent)
 
         #WDD [2024-07-31] [修复剪枝时的维度不匹配问题]
+        #.all 的效果是逻辑与，所有维度都为True时才为True
         prune_mask = (self.get_opacity < min_opacity).all(dim=-1)
         if max_screen_size:
             big_points_vs = self.max_radii2D > max_screen_size
