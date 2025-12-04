@@ -96,6 +96,34 @@ class Camera(nn.Module):
         self.projection_matrix = getProjectionMatrix(znear=self.znear, zfar=self.zfar, fovX=self.FoVx, fovY=self.FoVy).transpose(0,1)#.cuda()
         self.full_proj_transform = (self.world_view_transform.unsqueeze(0).bmm(self.projection_matrix.unsqueeze(0))).squeeze(0)
         self.camera_center = self.world_view_transform.inverse()[3, :3]
+    
+    def cuda(self):
+        """将所有tensor属性转移到GPU"""
+        self.data_device = "cuda"
+        
+        # 图像相关 - 使用hasattr检查属性是否存在
+        if hasattr(self, 'original_image') and self.original_image is not None:
+            self.original_image = self.original_image.cuda()
+        if hasattr(self, 'alpha_mask') and self.alpha_mask is not None:
+            self.alpha_mask = self.alpha_mask.cuda()
+        
+        # 深度相关
+        if hasattr(self, 'invdepthmap') and self.invdepthmap is not None:
+            self.invdepthmap = self.invdepthmap.cuda()
+        if hasattr(self, 'depth_mask') and self.depth_mask is not None:
+            self.depth_mask = self.depth_mask.cuda()
+        
+        # 相机变换矩阵 - 这些是必须的
+        if hasattr(self, 'world_view_transform'):
+            self.world_view_transform = self.world_view_transform.cuda()
+        if hasattr(self, 'projection_matrix'):
+            self.projection_matrix = self.projection_matrix.cuda()
+        if hasattr(self, 'full_proj_transform'):
+            self.full_proj_transform = self.full_proj_transform.cuda()
+        if hasattr(self, 'camera_center'):
+            self.camera_center = self.camera_center.cuda()
+        
+        return self
         
 class MiniCam:
     def __init__(self, width, height, fovy, fovx, znear, zfar, world_view_transform, full_proj_transform):

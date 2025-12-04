@@ -314,8 +314,8 @@ def readNerfSyntheticInfo(path, white_background, depths, eval, extension=".png"
     return scene_info
 
 def read4DGSSceneInfo(path, images, depths, eval, train_test_exp, llffhold=8):
-    train_cam_infos = []
-    test_cam_infos = []
+    train_cam_infos = {}
+    test_cam_infos = {}
 
     frame_dirs = sorted([d for d in os.listdir(path) if d.startswith('frame') and os.path.isdir(os.path.join(path, d))]) # WDD [2024-07-30] 原因: 获取所有帧目录并排序。
     #
@@ -341,9 +341,9 @@ def read4DGSSceneInfo(path, images, depths, eval, train_test_exp, llffhold=8):
             images_folder=os.path.join(frame_path, reading_dir),
             depths_folder="", test_cam_names_list=[], time_idx=time_idx) # WDD [2024-07-30] 原因: 将当前的时间索引传递给相机读取函数。
         
-        train_cam_infos.extend(cam_infos_unsorted)
+        train_cam_infos[time_idx]=cam_infos_unsorted #SUMO修改为逐帧读取
 
-    nerf_normalization = getNerfppNorm(train_cam_infos)
+    nerf_normalization = getNerfppNorm(train_cam_infos[0])
 
     # WDD注释: 使用找到的第一个帧目录来加载初始点云，而不是硬编码 'frame000000'
     if not frame_dirs:

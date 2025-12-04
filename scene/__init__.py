@@ -18,6 +18,9 @@ from scene.gaussian_model import GaussianModel
 from arguments import ModelParams
 from utils.camera_utils import cameraList_from_camInfos, camera_to_JSON
 
+#SUMO
+from scene.colmap_dataset import ColmapDataset
+
 class Scene:
 
     gaussians : GaussianModel
@@ -29,6 +32,8 @@ class Scene:
         self.model_path = args.model_path
         self.loaded_iter = None
         self.gaussians = gaussians
+        #SUMO
+        self.args = args
 
         if load_iteration:
             if load_iteration == -1:
@@ -58,25 +63,40 @@ class Scene:
             json_cams = []
             camlist = []
             if scene_info.test_cameras:
-                camlist.extend(scene_info.test_cameras)
+                #SUMO
+                for idx in scene_info.test_cameras:
+                    camlist.extend(scene_info.test_cameras[idx])
             if scene_info.train_cameras:
-                camlist.extend(scene_info.train_cameras)
+                for idx in scene_info.train_cameras:
+                    camlist.extend(scene_info.train_cameras[idx])
             for id, cam in enumerate(camlist):
                 json_cams.append(camera_to_JSON(id, cam))
             with open(os.path.join(self.model_path, "cameras.json"), 'w') as file:
                 json.dump(json_cams, file)
 
-        if shuffle:
-            random.shuffle(scene_info.train_cameras)  # Multi-res consistent random shuffling
-            random.shuffle(scene_info.test_cameras)  # Multi-res consistent random shuffling
+        # if shuffle:
+        #     random.shuffle(scene_info.train_cameras)  # Multi-res consistent random shuffling
+        #     random.shuffle(scene_info.test_cameras)  # Multi-res consistent random shuffling
+
+        self.train_cameras_info = scene_info.train_cameras
+        self.test_cameras_info = scene_info.test_cameras
 
         self.cameras_extent = scene_info.nerf_normalization["radius"]
 
-        for resolution_scale in resolution_scales:
-            print("Loading Training Cameras")
-            self.train_cameras[resolution_scale] = cameraList_from_camInfos(scene_info.train_cameras, resolution_scale, args, scene_info.is_nerf_synthetic, False)
-            print("Loading Test Cameras")
-            self.test_cameras[resolution_scale] = cameraList_from_camInfos(scene_info.test_cameras, resolution_scale, args, scene_info.is_nerf_synthetic, True)
+        # 全部加载
+        # for resolution_scale in resolution_scales:
+        #     print("Loading Training Cameras")
+        #     self.train_cameras[resolution_scale] = cameraList_from_camInfos(scene_info.train_cameras, resolution_scale, args, scene_info.is_nerf_synthetic, False)
+        #     print("Loading Test Cameras")
+        #     self.test_cameras[resolution_scale] = cameraList_from_camInfos(scene_info.test_cameras, resolution_scale, args, scene_info.is_nerf_synthetic, True)
+
+        #dataset加载
+        # for resolution_scale in resolution_scales:
+        #     print("Loading Training Cameras")
+        #     self.train_cameras[resolution_scale] =ColmapDataset(scene_info.train_cameras,args.resolution,resolution_scale)
+        #     print("Loading Test Cameras")
+        #     self.test_cameras[resolution_scale] = ColmapDataset(scene_info.test_cameras,args.resolution,resolution_scale)
+
 
         if self.loaded_iter:
             self.gaussians.load_ply(os.path.join(self.model_path,
@@ -85,9 +105,15 @@ class Scene:
                                                            "point_cloud.ply"), args.train_test_exp)
         else:
             #WDD [2024-07-30] 原因: 添加帧数参数以接收帧数信息。
-            frame_count=max_time_idx = max(camera.time_idx for camera in scene_info.train_cameras)+1
-            self.gaussians.create_from_pcd(scene_info.point_cloud, scene_info.train_cameras, self.cameras_extent,frame_count)
+            # frame_count=max_time_idx = max(camera.time_idx for camera in scene_info.train_cameras)+1
+            #SUMO
+            frame_count=len(scene_info.train_cameras)
+            self.gaussians.create_from_pcd(scene_info.point_cloud, scene_info.train_cameras[0], self.cameras_extent,frame_count)
 
+    def load_cameras(self,cams_info,resolution_scales=[1.0]):
+        for resolution_scale in resolution_scales:
+            self.train_cameras[resolution_scale] = cameraList_from_camInfos(cams_info, resolution_scale, self.args, False, False)
+            return self.train_cameras[resolution_scale]
     def save(self, iteration):
         # WDD [2024-08-01] [修复4DGS保存ply的错误，并为每个时间帧分别保存]
         point_cloud_path = os.path.join(self.model_path, "point_cloud/iteration_{}".format(iteration))
