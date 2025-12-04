@@ -17,11 +17,11 @@ from utils.general_utils import PILtoTorch
 import cv2
 
 class Camera(nn.Module):
-    def __init__(self, resolution, colmap_id, R, T, FoVx, FoVy, depth_params, image, invdepthmap,
+    def __init__(self, resolution, colmap_id, R, T, FoVx, FoVy, image, 
                  image_name, uid, time_idx, # WDD [2024-07-30] 原因: 增加time_idx参数以接收时间信息。
                  trans=np.array([0.0, 0.0, 0.0]), scale=1.0, data_device = "cuda",
-                 train_test_exp = False, is_test_dataset = False, is_test_view = False
-                 ):
+                 train_test_exp = False, is_test_dataset = False, is_test_view = False,
+                 invdepthmap=None,depth_params=None):
         super(Camera, self).__init__()
 
         self.uid = uid

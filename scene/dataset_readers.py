@@ -34,12 +34,8 @@ class CameraInfo(NamedTuple):
     image_name: str
     width: int
     height: int
-<<<<<<< HEAD
     is_test: bool
     time_idx: int # WDD [2024-07-30] 原因: 为动态场景添加时间索引。
-=======
-    time: float # WDD: 2024-05-21 为支持动态高斯场景，增加时间戳属性
->>>>>>> 9cffd5e (Stable version before new feature)
 
 class SceneInfo(NamedTuple):
     point_cloud: BasicPointCloud
@@ -112,10 +108,14 @@ def readColmapCameras(cam_extrinsics, cam_intrinsics, depths_params, images_fold
         image_path = os.path.join(images_folder, extr.name)
         image_name = extr.name
         depth_path = os.path.join(depths_folder, f"{extr.name[:-n_remove]}.png") if depths_folder != "" else ""
+        image = Image.open(image_path)
 
-        cam_info = CameraInfo(uid=uid, R=R, T=T, FovY=FovY, FovX=FovX, depth_params=depth_params,
-                              image_path=image_path, image_name=image_name, depth_path=depth_path,
-                              width=width, height=height, is_test=image_name in test_cam_names_list, time_idx=time_idx) # WDD [2024-07-30] 原因: 将时间索引保存到CameraInfo中。
+        cam_info = CameraInfo(uid=uid, R=R, T=T, FovY=FovY, FovX=FovX,
+                              image=image, image_path=image_path, image_name=image_name,
+                              width=width, height=height, is_test=image_name in test_cam_names_list, time_idx=time_idx) 
+                    # WDD [2024-07-30] 原因: 将时间索引保存到CameraInfo中。
+
+                    
         cam_infos.append(cam_info)
 
     sys.stdout.write('\n')
