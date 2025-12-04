@@ -80,22 +80,23 @@ class Scene:
 
         if self.loaded_iter:
             self.gaussians.load_ply(os.path.join(self.model_path,
-                                                           "point_cloud",
-                                                           "iteration_" + str(self.loaded_iter),
-                                                           "point_cloud.ply"), args.train_test_exp)
+                                                       "point_cloud",
+                                                       "iteration_" + str(self.loaded_iter),
+                                                       "point_cloud.ply"), args.train_test_exp)
         else:
-            #WDD [2024-07-30] 原因: 添加帧数参数以接收帧数信息。
-            frame_count=max_time_idx = max(camera.time_idx for camera in scene_info.train_cameras)+1
-            self.gaussians.create_from_pcd(scene_info.point_cloud, scene_info.train_cameras, self.cameras_extent,frame_count)
+            # 获取最大时间索引作为帧数
+            frame_count = max(camera.time_idx for camera in scene_info.train_cameras) + 1
+            self.gaussians.create_from_pcd(scene_info.point_cloud, scene_info.train_cameras, self.cameras_extent, frame_count)
 
     def save(self, iteration):
-        # WDD [2024-08-01] [修复4DGS保存ply的错误，并为每个时间帧分别保存]
+        # WDD [2024-08-02] [修改保存逻辑以支持按帧保存PLY]
         point_cloud_path = os.path.join(self.model_path, "point_cloud/iteration_{}".format(iteration))
-        # 获取总帧数
-        frame_count = self.gaussians._opacity.shape[1]
+        # 获取总帧数，通过查找训练数据中最大的时间索引+1
+        frame_count = max(camera.time_idx for camera in self.getTrainCameras()) + 1
         # 为每个时间帧保存一个ply文件
         for t in range(frame_count):
             ply_path = os.path.join(point_cloud_path, f"point_cloud_t{t}.ply")
+            # 将当前时间索引t传递给save_ply，以保存该帧的动态透明度
             self.gaussians.save_ply(ply_path, time_idx=t)
         exposure_dict = {
             image_name: self.gaussians.get_exposure_from_name(image_name).detach().cpu().numpy().tolist()
