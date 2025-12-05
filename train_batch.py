@@ -78,10 +78,12 @@ def training(dataset, opt, pipe, testing_iterations, saving_iterations, checkpoi
     # WDD [2024-07-31] [为GUI动态播放初始化时间和时间索引]
     last_time_update = time.time()
     current_time_idx = 0
-    frame_count = scene.gaussians.get_opacity.shape[1]
+    frame_count = len(scene.train_cameras_info)
         
     global_iteration = 0
-   
+
+ 
+    first_iter += 1
     for epoch in range(0, opt.epochs):
         frame_keys = list(frame_stack.keys()) 
         
@@ -99,13 +101,13 @@ def training(dataset, opt, pipe, testing_iterations, saving_iterations, checkpoi
         frames_cams=scene.load_cameras(frames_cams_info)
         viewpoint_cams= [cam.cuda() for cam in frames_cams]
         
-        first_iter += 1
+        
         random.shuffle(viewpoint_cams)
         viewpoint_stack = viewpoint_cams.copy()
         viewpoint_indices = list(range(len(viewpoint_stack)))
 
-        progress_bar = tqdm(range(first_iter, opt.iterations), desc="Training progress")
-        for iteration in range(first_iter, opt.iterations + 1):
+        progress_bar = tqdm(range(first_iter, opt.iterations+1), desc="Training progress")
+        for iteration in range(first_iter, opt.iterations + 2):
 
             if network_gui.conn == None:
                 network_gui.try_connect()
@@ -123,10 +125,11 @@ def training(dataset, opt, pipe, testing_iterations, saving_iterations, checkpoi
                         net_image = render(custom_cam, gaussians, pipe, background, scaling_modifier=scaling_modifer, use_trained_exp=dataset.train_test_exp, separate_sh=SPARSE_ADAM_AVAILABLE)["render"]
                         net_image_bytes = memoryview((torch.clamp(net_image, min=0, max=1.0) * 255).byte().permute(1, 2, 0).contiguous().cpu().numpy())
                     network_gui.send(net_image_bytes, dataset.source_path)
-                    if do_training and ((iteration < int(opt.iterations)) or not keep_alive):
+                    if do_training and ((iteration < int(opt.iterations)*int(opt.epochs)) or not keep_alive):
                         break
                 except Exception as e:
                     network_gui.conn = None
+            
 
             global_iteration+=1
             if not viewpoint_stack:

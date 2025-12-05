@@ -101,7 +101,7 @@ class Scene:
         # WDD [2024-08-02] [修改保存逻辑以支持按帧保存PLY]
         point_cloud_path = os.path.join(self.model_path, "point_cloud/iteration_{}".format(iteration))
         # 获取总帧数，通过查找训练数据中最大的时间索引+1
-        frame_count = max(camera.time_idx for camera in self.getTrainCameras()) + 1
+        frame_count = len(self.train_cameras_info)
         # 为每个时间帧保存一个ply文件
         for t in range(frame_count):
             ply_path = os.path.join(point_cloud_path, f"point_cloud_t{t}.ply")
