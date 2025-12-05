@@ -46,6 +46,7 @@ import random
 
 from typing import Dict, List
 import numpy as np
+import time
 def need_to_double_training(
     losses_data: Dict[str, float], 
     target_frame_id: str, 
@@ -54,7 +55,7 @@ def need_to_double_training(
 
     
     # 1. 提取所有 Loss 值并计算均值
-    all_values = np.array(list(losses_data.values().cpu()))
+    all_values = np.array(list(losses_data.values()))
     mean_value = np.mean(all_values)
 
     # 2. 计算每个样本与均值的绝对距离（方差贡献度）
@@ -127,6 +128,7 @@ def training(dataset, opt, pipe, testing_iterations, saving_iterations, checkpoi
 
     print("Starting training")
     for epoch in range(0, opt.epochs):
+        st=time.time()
         frame_keys = list(frame_stack.keys()) 
         
         if not frame_keys: # 检查键列表是否为空，如果为空则重置
@@ -142,7 +144,7 @@ def training(dataset, opt, pipe, testing_iterations, saving_iterations, checkpoi
 
         frames_cams=scene.load_cameras(frames_cams_info)
         viewpoint_cams= [cam.cuda() for cam in frames_cams]
-        
+        print(f"load time: {time.time()-st}s")
         
         random.shuffle(viewpoint_cams)
         viewpoint_stack = viewpoint_cams.copy()
@@ -240,7 +242,7 @@ def training(dataset, opt, pipe, testing_iterations, saving_iterations, checkpoi
                 Ll1depth = 0
 
             #SUMO
-            images_loss[viewpoint_cam.image_name] = loss
+            images_loss[viewpoint_cam.image_name] = loss.item()
 
             loss.backward()
 
