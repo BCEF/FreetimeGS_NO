@@ -43,6 +43,46 @@ except:
 #SUMO
 from torch.utils.data import DataLoader
 import random
+
+from typing import Dict, List
+import numpy as np
+def need_to_double_training(
+    losses_data: Dict[str, float], 
+    target_frame_id: str, 
+    top_percent: float = 0.2
+) -> bool:
+
+    
+    # 1. 提取所有 Loss 值并计算均值
+    all_values = np.array(list(losses_data.values().cpu()))
+    mean_value = np.mean(all_values)
+
+    # 2. 计算每个样本与均值的绝对距离（方差贡献度）
+    # 使用字典推导式 (dict comprehension) 保持简洁
+    contributions = {
+        view_id: abs(loss - mean_value) 
+        for view_id, loss in losses_data.items()
+    }
+
+    # 3. 确定需要筛选的数量 (N%)
+    total_count = len(contributions)
+    num_to_select = max(1, int(total_count * top_percent))
+
+    # 4. 获取贡献度的值列表，并降序排序
+    sorted_contributions = sorted(contributions.values(), reverse=True)
+    
+    # 5. 确定前 N% 样本中最小的贡献度阈值
+    # 只要目标贡献度大于或等于这个阈值，它就在前 N%
+    threshold_contribution = sorted_contributions[num_to_select - 1]
+    
+    # 6. 获取目标视角的贡献度并进行比较
+    target_contribution = contributions.get(target_frame_id)
+    
+    if target_contribution is None:
+        raise ValueError(f"目标 ID '{target_frame_id}' 不存在于输入数据中。")
+
+    # 注意：使用 >= 是为了处理并列情况
+    return target_contribution >= threshold_contribution
 def training(dataset, opt, pipe, testing_iterations, saving_iterations, checkpoint_iterations, checkpoint, debug_from):
 
     if not SPARSE_ADAM_AVAILABLE and opt.optimizer_type == "sparse_adam":
@@ -64,7 +104,7 @@ def training(dataset, opt, pipe, testing_iterations, saving_iterations, checkpoi
     iter_end = torch.cuda.Event(enable_timing = True)
 
     use_sparse_adam = opt.optimizer_type == "sparse_adam" and SPARSE_ADAM_AVAILABLE 
-    depth_l1_weight = get_expon_lr_func(opt.depth_l1_weight_init, opt.depth_l1_weight_final, max_steps=opt.iterations)
+    depth_l1_weight = get_expon_lr_func(opt.depth_l1_weight_init, opt.depth_l1_weight_final, max_steps=int(opt.iterations)*int(opt.epochs))
 
 
     #SUMO
@@ -81,9 +121,11 @@ def training(dataset, opt, pipe, testing_iterations, saving_iterations, checkpoi
     frame_count = len(scene.train_cameras_info)
         
     global_iteration = 0
-
- 
     first_iter += 1
+
+    all_frame_loss={}
+
+    print("Starting training")
     for epoch in range(0, opt.epochs):
         frame_keys = list(frame_stack.keys()) 
         
@@ -105,9 +147,22 @@ def training(dataset, opt, pipe, testing_iterations, saving_iterations, checkpoi
         random.shuffle(viewpoint_cams)
         viewpoint_stack = viewpoint_cams.copy()
         viewpoint_indices = list(range(len(viewpoint_stack)))
+        
+        if global_iteration< opt.densify_until_iter:
+            base_iterations=opt.iterations//10 +2
+        else:
+            base_iterations=opt.iterations + 2
 
-        progress_bar = tqdm(range(first_iter, opt.iterations+1), desc="Training progress")
-        for iteration in range(first_iter, opt.iterations + 2):
+        #SUMO 用于存储每一个视角的loss
+        images_loss={}
+        #loss大的视角加倍训练
+        if epoch>frame_count:
+            if need_to_double_training(all_frame_loss,target_frame_id=viewpoint_cams[0].time_idx,top_percent=0.1):
+                base_iterations=(opt.iterations + 2)*2
+
+        progress_bar = tqdm(range(first_iter, base_iterations-1), desc="Training progress")
+        
+        for iteration in range(first_iter, base_iterations):
 
             if network_gui.conn == None:
                 network_gui.try_connect()
@@ -184,6 +239,9 @@ def training(dataset, opt, pipe, testing_iterations, saving_iterations, checkpoi
             else:
                 Ll1depth = 0
 
+            #SUMO
+            images_loss[viewpoint_cam.image_name] = loss
+
             loss.backward()
 
             iter_end.record()
@@ -198,7 +256,7 @@ def training(dataset, opt, pipe, testing_iterations, saving_iterations, checkpoi
                     postfix_dict = {"Loss": f"{ema_loss_for_log:.{7}f}",   "Points": f"{gaussians.get_xyz.shape[0]}"}
                     progress_bar.set_postfix(postfix_dict)
                     progress_bar.update(10)
-                if iteration == opt.iterations:
+                if iteration == base_iterations-2:
                     progress_bar.close()
 
                 # Log and save
@@ -221,7 +279,7 @@ def training(dataset, opt, pipe, testing_iterations, saving_iterations, checkpoi
                         gaussians.reset_opacity()
 
                 # Optimizer step
-                if global_iteration < opt.iterations:
+                if global_iteration < opt.iterations*int(opt.epochs):
                     gaussians.exposure_optimizer.step()
                     gaussians.exposure_optimizer.zero_grad(set_to_none = True)
                     if use_sparse_adam:
@@ -236,6 +294,13 @@ def training(dataset, opt, pipe, testing_iterations, saving_iterations, checkpoi
                     print("\n[ITER {}] Saving Checkpoint".format(global_iteration))
                     torch.save((gaussians.capture(), global_iteration), scene.model_path + "/chkpnt" +str(global_iteration) + ".pth")
 
+        #SUMO 记录这一帧的最大loss
+        current_time_idx_loss=max(images_loss.values())
+        all_frame_loss[viewpoint_cams[0].time_idx]=current_time_idx_loss
+        
+        if global_iteration%10000==0:
+            print("\n[ITER {}] Saving Gaussians".format(global_iteration))
+            scene.save(global_iteration)
 def prepare_output_and_logger(args):    
     if not args.model_path:
         if os.getenv('OAR_JOB_ID'):
@@ -315,7 +380,7 @@ if __name__ == "__main__":
     parser.add_argument("--checkpoint_iterations", nargs="+", type=int, default=[])
     parser.add_argument("--start_checkpoint", type=str, default = None)
     args = parser.parse_args(sys.argv[1:])
-    args.save_iterations.append(args.iterations)
+    args.save_iterations.append(args.iterations*args.epochs)
     
     print("Optimizing " + args.model_path)
 
