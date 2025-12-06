@@ -51,7 +51,7 @@ class ColmapDataset(Dataset):
                  cameras_info,
                  resolution,
                  resolution_scale,args):
-        self.cameras_info_dataset=self.shuffle_camera_dict(cameras_info)
+        self.cameras_info_dataset=list(self.shuffle_camera_dict(cameras_info).values())
         self.resolution=resolution
         self.resolution_scale=resolution_scale
         self.args=args
@@ -161,7 +161,7 @@ def training(dataset, opt, pipe, testing_iterations, saving_iterations, checkpoi
     # frame_indices=list(range(len(frame_stack))) # <--- 移除
 
     # 1. 准备数据集信息 (将字典值转换为列表)
-    frame_cameras_list = list(scene.train_cameras_info.values())
+    frame_cameras_list = scene.train_cameras_info
     
     # 2. 初始化 Dataset (假设 scene.args 可用)
     train_dataset = ColmapDataset(
